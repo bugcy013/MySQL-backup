@@ -63,14 +63,27 @@ class PartialRecovery:
     #         print(i)
 
     def backup_file_processes(self):
+        database_name = input("Type Database name: ")
+        database_dir_list = []
+        table_name = input("Type Table name: ")
+
         for i in os.listdir(self.full_dir):
-            print(i)
+            for x in os.listdir(self.full_dir+"/"+i):
+                if os.path.isdir(self.full_dir+"/"+i+"/"+x) and x == database_name:
+                    for z in os.listdir(self.full_dir+"/"+i+"/"+x):
+                        database_dir_list.append(z)
+
+        if len(database_dir_list) > 0:
+            for i in database_dir_list:
+                print(i)
+        else:
+            print("There is no such database")
 
 
 
 
 a = PartialRecovery()
-a.get_mysql_connection()
+a.backup_file_processes()
 
 
 
