@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import errorcode
 import time
 import configparser
+import os
 
 class PartialRecovery:
 
@@ -60,6 +61,11 @@ class PartialRecovery:
     #     self.get_mysql_connection().execute(query)
     #     for i in self.get_mysql_connection():
     #         print(i)
+
+    def backup_file_processes(self):
+        for i in os.listdir(self.full_dir):
+            print(i)
+
 
 
 
