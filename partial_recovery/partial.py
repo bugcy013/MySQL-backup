@@ -1,16 +1,20 @@
 import mysql.connector
-from mysql.connector import errorcode
 import time
 import configparser
 import os
+import shutil
+import shlex
+import subprocess
+
+
 
 class PartialRecovery:
 
     def __init__(self, conf='bck.conf'):
 
-        """
-            Initialize function, which read bck.conf file from same directory
-        """
+        # ===========================
+        #  Reading Config File      #
+        # ===========================
 
         con = configparser.ConfigParser()
         con.read(conf)
@@ -30,9 +34,11 @@ class PartialRecovery:
         self.chown_command = con[CM]['chown_command']
 
 
-    def get_mysql_connection(self):
+        # =================================
+        # Connecting To MySQL
+        # =================================
 
-        config = {
+        self.config = {
 
             'user': 'root',
             'password': '12345',
@@ -42,30 +48,14 @@ class PartialRecovery:
 
         }
 
-        # Open connection
-        try:
-            cnx = mysql.connector.connect(**config)
-            cursor = cnx.cursor()
-            query="select 1 from dual"
-            cursor.execute(query)
-            for i in cursor:
-                print(i)
+        self.cnx = mysql.connector.connect(**self.config)
+        self.cur = self.cnx.cursor()
 
-            cursor.close()
-            cnx.close()
-        except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                print("Something is wrong with your user name or password")
-            elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                print("Database does not exists")
-            else:
-                print(err)
 
-    # def run_query(self):
-    #     query="select 1 from dual"
-    #     self.get_mysql_connection().execute(query)
-    #     for i in self.get_mysql_connection():
-    #         print(i)
+    def __del__(self):
+        self.cnx.close()
+        self.cur.close()
+
 
     def get_table_ibd_file(self, database_name, table_name):
         """
@@ -76,18 +66,20 @@ class PartialRecovery:
 
 
         database_dir_list = []
-        database_dir_abspath = []
+        database_objects_full_path = []
+        find_objects_full_path = []
         table_dir_list = []
 
 
-        # look for all files in database directory
+        # Look for all files in database directory
         for i in os.listdir(self.full_dir):
             for x in os.listdir(self.full_dir+"/"+i):
                 if os.path.isdir(self.full_dir+"/"+i+"/"+x) and x == database_name:
                     for z in os.listdir(self.full_dir+"/"+i+"/"+x):
                         database_dir_list.append(z)
-                        path_name = os.path.abspath(z)
-                        database_dir_abspath.append(path_name)
+                        database_objects_full_path.append(self.full_dir+"/"+i+"/"+x+"/"+z)
+
+
 
         # If database directory exists find already provided table in database directory
         if len(database_dir_list) > 0:
@@ -102,15 +94,74 @@ class PartialRecovery:
         # If table name from input is valid and it is located in database directory return .ibd file name
         if len(database_dir_list) > 0 and len(table_dir_list) == 2: # Why 2? because every table must have .frm and .ibd file
             for i in table_dir_list:
-                base_file = os.path.splitext(i)[0]
                 ext = os.path.splitext(i)[1]
                 if ext == '.ibd':
-                    print(i)
+                    for a in database_objects_full_path:
+                        if i in a:
+                            find_objects_full_path.append(a)
+
+            if len(find_objects_full_path) > 0:
+                for x in find_objects_full_path:
+                    return x
         else:
             print("There is no such Database or Table")
 
-        for i in database_dir_abspath:
-            print(i)
+
+    def lock_table(self,database_name, table_name):
+        #query = "select 1 from dual"
+        query = "LOCK TABLES %s.%s WRITE" % (database_name, table_name)
+        try:
+            self.cur.execute(query)
+            # for i in self.cur:
+            #     print(i)
+            return True
+        except mysql.connector.Error as err:
+            print(err)
+
+
+    def alter_tablespace(self, database_name, table_name):
+        query = "ALTER TABLE %s.%s DISCARD TABLESPACE" % (database_name, table_name)
+        try:
+            self.cur.execute(query)
+            return True
+        except mysql.connector.Error as err:
+            print(err)
+
+
+    def copy_ibd_file_back(self, path_of_ibd_file, path_to_mysql_database_dir):
+        try:
+            shutil.copy(path_of_ibd_file, path_to_mysql_database_dir)
+            return True
+        except Exception as err:
+            print(err)
+
+    def give_chown(self, path_to_mysql_database_dir):
+        comm = '%s %s' % (self.chown_command, path_to_mysql_database_dir)
+        comm2 = shlex.split(comm)
+        try:
+            fb2 = subprocess.Popen(comm2, stdout=subprocess.PIPE)
+            print(str(fb2.stdout.read()))
+            return True
+        except Exception as err:
+            print(err)
+
+
+
+    def import_tablespace(self, database_name, table_name):
+        query = "ALTER TABLE %s.%s IMPORT TABLESPACE" % (database_name, table_name)
+        try:
+            self.cur.execute(query)
+            return True
+        except mysql.connector.Error as err:
+            print(err)
+
+    def unlock_tables(self):
+        query = "unlock tables"
+        try:
+            self.cur.execute(query)
+            return True
+        except mysql.connector.Error as err:
+            print(err)
 
 
     def final_actions(self):
@@ -120,9 +171,18 @@ class PartialRecovery:
         # Type name of table which you want to restore
         table_name = input("Type Table name: ")
 
-        self.get_table_ibd_file(database_name=database_name, table_name=table_name)
+        path = self.get_table_ibd_file(database_name=database_name, table_name=table_name)
+        path_to_mysql_datadir = self.datadir+"/"+database_name
+
+        if self.lock_table(database_name=database_name, table_name=table_name):
+            if self.alter_tablespace(database_name=database_name, table_name=table_name):
+                if self.copy_ibd_file_back(path_of_ibd_file=path, path_to_mysql_database_dir=path_to_mysql_datadir):
+                    if self.give_chown(path_to_mysql_database_dir=path_to_mysql_datadir):
+                        if self.import_tablespace(database_name=database_name, table_name=table_name):
+                            self.unlock_tables()
+
 
 
 a = PartialRecovery()
-#print(a.get_table_ibd_file())
 a.final_actions()
+
