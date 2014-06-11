@@ -32,3 +32,10 @@ Script Logic:
     backup_prepare -- is where prepare scipt resides. After taking backup you must prepare it for recovery. This script will do it automatically.
     
 
+============
+
+Partial Table Recovery:
+         
+         * partial_recovery
+
+Also there is another script for partial recovery. Which is using already prepared backup and restore 1 table.
