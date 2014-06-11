@@ -16,7 +16,7 @@ from mysql.connector import errorcode
 # Creating Backup class
 
 class Backup:
-    def __init__(self, conf='/home/backup_script/bck.conf'):
+    def __init__(self, conf='/home/master_backup_script/bck.conf'):
         con = configparser.ConfigParser()
         con.read(conf)
         bolme = con.sections()
