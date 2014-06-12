@@ -2,10 +2,8 @@ import configparser
 import subprocess
 import shlex
 import os
-import datetime
-import shutil
 from datetime import datetime
-
+import time
 
 class MysqlDumper:
     """
@@ -38,17 +36,23 @@ class MysqlDumper:
 
 
     def clean_full_backup_dir(self):
+
         # Deleting full backup after taking new full backup
 
-        for i in os.listdir(self.full_dir):
-            rm_dir = self.full_dir + '/' + i
-            if i != max(os.listdir(self.full_dir)):
-                shutil.rmtree(rm_dir)
+        dir_length = len(os.listdir(self.full_dir))
+
+        if dir_length > 1:
+            for i in os.listdir(self.full_dir):
+                rm_dir = self.full_dir + '/' + i
+                if i != max(os.listdir(self.full_dir)):
+                    #shutil.rmtree(rm_dir)
+                    os.remove(rm_dir)
 
 
     def take_dump_backup(self):
 
         # Defining file name based on datetime
+
         now = datetime.now().replace(second=0, microsecond=0)
         now = str(now)
         date1 = now[:10] + '_' + now[11:16]
@@ -56,18 +60,29 @@ class MysqlDumper:
 
         # Taking Full backup
         command = '%s %s > %s/%s.sql' % (self.backup_tool, self.myuseroption, self.full_dir, file_name)
-        # args = shlex.split(command)
-        # fb = subprocess.Popen(args, stdout=subprocess.PIPE)
-        # print(str(fb.stdout.read()))
+        args = shlex.split(command)
+        fb = subprocess.Popen(args, stdout=subprocess.PIPE)
+        print(str(fb.stdout.read()))
 
         print(command)
 
 
     def all_procedures(self):
+        # Starting Timing
+
+        start = time.time()
 
         # Calling Backup function
 
         self.take_dump_backup()
+
+        # Stopping timing
+
+        end = time.time()
+
+        # Measuring time takes to take a backup
+
+        print(end-start)
 
         # Cleaning old backup
 
@@ -75,5 +90,5 @@ class MysqlDumper:
 
 
 x = MysqlDumper()
-#x.all_procedures()
-x.take_dump_backup()
+x.all_procedures()
+#x.take_dump_backup()
