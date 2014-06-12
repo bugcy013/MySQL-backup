@@ -4,6 +4,8 @@ import shlex
 import os
 from datetime import datetime
 import time
+import logging
+
 
 class MysqlDumper:
     """
@@ -61,34 +63,98 @@ class MysqlDumper:
         # Taking Full backup
         command = '%s %s > %s/%s.sql' % (self.backup_tool, self.myuseroption, self.full_dir, file_name)
         args = shlex.split(command)
-        fb = subprocess.Popen(args, stdout=subprocess.PIPE)
-        print(str(fb.stdout.read()))
 
-        print(command)
+        try:
+            fb = subprocess.Popen(args, stdout=subprocess.PIPE)
+        #    print(str(fb.stdout.read()))
+            return str(fb.stdout.read())
+        except subprocess.SubprocessError as err:
+            err_message = "Error Occured", err
+            return err_message
+
+        #print(command)
 
 
     def all_procedures(self):
+        # Create logger
+
+        logger = Logger()
+        log_it = logger.return_logger()
+
         # Starting Timing
 
         start = time.time()
 
-        # Calling Backup function
+        # Keep datetime when  backup starts
+        now = datetime.now().replace(second=0, microsecond=0)
+        now = str(now)
+        date1 = now[:10] + '_' + now[11:16]
 
-        self.take_dump_backup()
+        # Calling Backup function
+        log_it.info("############################################")
+        log_it.info('Backup started at %s', date1)
+        log_it.info(self.take_dump_backup())
 
         # Stopping timing
-
         end = time.time()
+
+        # Keep datetime when backup stops
+        now = datetime.now().replace(second=0, microsecond=0)
+        now = str(now)
+        date1 = now[:10] + '_' + now[11:16]
+
+        log_it.info('Backup stopped at %s', date1)
 
         # Measuring time takes to take a backup
 
-        print(end-start)
-
+        #print(end-start)
+        estimated_time = end-start
+        log_it.info('Backup time %s', estimated_time)
+        log_it.info("############################################")
         # Cleaning old backup
 
         self.clean_full_backup_dir()
 
 
+class Logger:
+    """
+
+    Class for logging backup process
+
+    """
+
+    def __init__(self):
+
+        self.logger = logging.getLogger('MYSQLDUMP')
+        self.logger.setLevel(logging.INFO)
+
+        # create a file handler
+
+        self.handler = logging.FileHandler('/home/backup_dir/mysqldump_backup.log')
+        self.handler.setLevel(logging.INFO)
+
+        # create a logging format
+
+        self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', "%d-%m-%Y %H:%M:%S")
+        self.handler.setFormatter(self.formatter)
+
+        # add the handlers to the logger
+
+        self.logger.addHandler(self.handler)
+
+
+    def return_logger(self):
+
+        return self.logger
+
+
+
+
 x = MysqlDumper()
 x.all_procedures()
 #x.take_dump_backup()
+
+# y = Logger()
+# log_it = y.return_logger()
+#
+# log_it.info("Fuck Emin")
